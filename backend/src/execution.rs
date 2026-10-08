@@ -93,7 +93,9 @@ pub async fn run(host: &HostClient, input: RunInput, parent_timeout_ms: u64) -> 
             ErrorCode::Timeout => "测试超时".into(),
             ErrorCode::Cancelled => "测试被取消".into(),
             ErrorCode::PermissionDenied => "Client Key 无权访问该账号或模型".into(),
-            ErrorCode::Capacity => "并发或额度限制，暂时无法调用".into(),
+            ErrorCode::Capacity if error.message.trim().is_empty() => {
+                "并发或额度限制，暂时无法调用".into()
+            }
             _ => error.message.chars().take(500).collect(),
         });
     }

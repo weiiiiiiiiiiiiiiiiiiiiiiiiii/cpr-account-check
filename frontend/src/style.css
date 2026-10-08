@@ -78,3 +78,5 @@ summary { cursor: pointer; margin-top: 12px; color: var(--muted); }
 .export-content { margin: 14px 0; }.export-content textarea { font-family: ui-monospace, monospace; }
 @media (max-width: 850px) { .settings-grid { grid-template-columns: 1fr 1fr 1fr; }.toolbar { align-items: flex-start; } }
 @media (max-width: 540px) { main { gap: 12px; }.panel { padding: 12px; }.settings-grid { grid-template-columns: 1fr 1fr; }.toolbar, .section-toolbar { gap: 10px; }.toolbar nav { width: 100%; }nav button { flex: 1; }.inline.grow { width: 100%; }.inline input.search { width: 100%; }.two { grid-template-columns: 1fr; }th, td { padding: 8px; }.stats { gap: 10px; }.details-grid { grid-template-columns: 85px 1fr; } }
+
+.probe-select { width: 100%; max-width: 480px; }

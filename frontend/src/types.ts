@@ -1,7 +1,7 @@
 export type Rule = 'exact' | 'contains' | 'regex' | 'manual'
 export type Outcome = 'passed' | 'wrong_answer' | 'format_error' | 'call_error' | 'manual_review'
 export interface Probe { id: string, name: string, prompt: string, expected: string, rule: Rule, enabled: boolean }
-export interface Settings { probes: Probe[], model: string, clientKeyId: string, reasoning: string, timeoutSeconds: number, repetitions: number, concurrency: number }
+export interface Settings { probes: Probe[], selectedProbeId: string, model: string, clientKeyId: string, reasoning: string, timeoutSeconds: number, repetitions: number, concurrency: number }
 export interface Account { account_id: string, provider_id: string, name: string, email: string | null, group_ids: string[], enabled: boolean, updated_at_ms: number }
 export interface ClientKey { id: string, name: string, enabled: boolean }
 export interface Snapshot { accounts: Account[], keys: ClientKey[], version: number | null, settings: Settings }

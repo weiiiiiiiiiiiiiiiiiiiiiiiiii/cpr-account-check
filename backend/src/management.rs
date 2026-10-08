@@ -185,7 +185,7 @@ async fn route(
             let request = ModelListRequest {
                 client_key_id: request.client_key_id,
                 protocol: "openai".into(),
-                client_version: "account-check/0.1.0".into(),
+                client_version: format!("account-check/{}", env!("CARGO_PKG_VERSION")),
             };
             let response = call
                 .host

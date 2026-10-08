@@ -74,6 +74,8 @@ async function callback(message, payload) {
       assert.equal(params.provider, 'openai'); assert.equal(params.client_key_id, 'key1'); assert.equal(params.protocol, 'openai');
       assert.equal(body.stream, true); assert.equal(body.store, false); assert.equal(body.reasoning.effort, 'high');
       starts++;
+      if (body.input === 'capacity') { error(id, 'capacity', 'account concurrency limit reached'); break; }
+      if (body.input === 'capacity-empty') { error(id, 'capacity', ''); break; }
       if (body.input === 'error') { error(id, 'upstream', '上游限流'); break; }
       const stream = `stream-${starts}`; executions.set(stream, body.input); result(id, { request_id: `req-${starts}`, stream }); break;
     }
@@ -131,6 +133,11 @@ try {
   const settings = snapshot.value.settings;
   assert.equal((await api('api/settings', { expectedVersion: null, value: settings })).status, 200);
   assert.equal((await api('api/settings', { expectedVersion: null, value: settings })).status, 409);
+  assert.equal(settings.selectedProbeId, 'candy');
+  assert.equal((await api('api/settings', { expectedVersion: 1, value: { ...settings, selectedProbeId: 'missing' } })).status, 400);
+  const legacy = { ...settings }; delete legacy.selectedProbeId;
+  assert.equal((await api('api/settings', { expectedVersion: 1, value: legacy })).status, 200);
+  assert.equal((await api('api/snapshot')).value.settings.selectedProbeId, '');
   conflicts = 1;
   const passInput = input('pass', 'a2');
   const pass = await api('api/run', passInput);
@@ -142,6 +149,10 @@ try {
   for (const [mode, expected] of [['wrong', 'wrong_answer'], ['format', 'format_error'], ['error', 'call_error'], ['incomplete', 'call_error'], ['long', 'call_error']]) {
     const reply = await api('api/run', input(mode)); assert.equal(reply.value.result.outcome, expected, mode); assert.equal(reply.value.saved, true);
   }
+  const capacity = (await api('api/run', input('capacity'))).value.result;
+  assert.equal(capacity.errorCode, 'capacity');
+  assert.equal(capacity.error, 'account concurrency limit reached');
+  assert.equal((await api('api/run', input('capacity-empty'))).value.result.error, '并发或额度限制，暂时无法调用');
   assert.equal((await api('api/run', input('manual', 'a1', 'manual'))).value.result.outcome, 'manual_review');
   assert.equal((await api('api/run', input('disabled', 'a3'))).value.result.outcome, 'call_error');
   const bad = input('bad'); bad.probe.rule = 'regex'; bad.probe.expected = '[';

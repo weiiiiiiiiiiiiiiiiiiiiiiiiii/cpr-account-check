@@ -13,46 +13,51 @@ export function useRunner() {
 
   async function start(accounts: Account[], settings: Settings) {
     if (running.value) return
-    const probes = settings.probes.filter(probe => probe.enabled)
-    if (!accounts.length || !probes.length) throw new Error('请选择账号并启用至少一道题目')
+    const probe = settings.probes.find(probe => probe.enabled && probe.id === settings.selectedProbeId)
+    if (!accounts.length || !probe) throw new Error('请选择账号和一道已启用的测试题目')
     if (!settings.clientKeyId || !settings.model) throw new Error('请选择 Client Key 和模型')
     if (!Number.isInteger(settings.concurrency) || settings.concurrency < 1 || settings.concurrency > 4
       || !Number.isInteger(settings.repetitions) || settings.repetitions < 1 || settings.repetitions > 5
       || !Number.isInteger(settings.timeoutSeconds) || settings.timeoutSeconds < 5 || settings.timeoutSeconds > 90)
       throw new Error('并发须为 1–4，重复次数须为 1–5，超时须为 5–90 秒')
-    if (probes.some(probe => !probe.name.trim() || !probe.prompt.trim() || (probe.rule !== 'manual' && !probe.expected.trim())))
-      throw new Error('请补齐启用题目的名称、提示词和预期答案')
-    const count = accounts.length * probes.length * settings.repetitions
-    if (count > 2000) throw new Error('单批最多 2000 次测试，请减少账号、题目或重复次数')
+    if (!probe.name.trim() || !probe.prompt.trim() || (probe.rule !== 'manual' && !probe.expected.trim()))
+      throw new Error('请补齐所选题目的名称、提示词和预期答案')
+    const count = accounts.length * settings.repetitions
+    if (count > 2000) throw new Error('单批最多 2000 次测试，请减少账号或重复次数')
     const batchId = crypto.randomUUID()
     const entries: QueueEntry[] = []
+    const groups: number[][] = []
     for (const account of accounts) {
-      for (const probe of probes) {
-        for (let repetition = 1; repetition <= settings.repetitions; repetition++) {
-          const input: RunInput = { runId: crypto.randomUUID(), batchId, accountId: account.account_id, probe: { ...probe }, model: settings.model, clientKeyId: settings.clientKeyId, reasoning: settings.reasoning, timeoutSeconds: settings.timeoutSeconds, repetition }
-          entries.push({ input, accountName: account.name, status: 'pending' })
-        }
+      const group: number[] = []
+      for (let repetition = 1; repetition <= settings.repetitions; repetition++) {
+        const input: RunInput = { runId: crypto.randomUUID(), batchId, accountId: account.account_id, probe: { ...probe }, model: settings.model, clientKeyId: settings.clientKeyId, reasoning: settings.reasoning, timeoutSeconds: settings.timeoutSeconds, repetition }
+        group.push(entries.length)
+        entries.push({ input, accountName: account.name, status: 'pending' })
       }
+      groups.push(group)
     }
     queue.value = entries
     running.value = true
     stopped.value = false
     let next = 0
     async function worker() {
-      while (!stopped.value && next < queue.value.length) {
-        const index = next++
-        const entry = queue.value[index]!
-        entry.status = 'running'
-        try {
-          const reply = await api.run(entry.input)
-          entry.result = reply.result
-          if (!reply.saved) entry.saveError = reply.saveError || '历史保存失败，请导出本次结果'
+      while (!stopped.value && next < groups.length) {
+        const group = groups[next++]!
+        for (const index of group) {
+          if (stopped.value) break
+          const entry = queue.value[index]!
+          entry.status = 'running'
+          try {
+            const reply = await api.run(entry.input)
+            entry.result = reply.result
+            if (!reply.saved) entry.saveError = reply.saveError || '历史保存失败，请导出本次结果'
+          }
+          catch (error) { entry.error = error instanceof Error ? error.message : '调用失败' }
+          finally { entry.status = 'done' }
         }
-        catch (error) { entry.error = error instanceof Error ? error.message : '调用失败' }
-        finally { entry.status = 'done' }
       }
     }
-    try { await Promise.all(Array.from({ length: Math.min(settings.concurrency, entries.length) }, worker)) }
+    try { await Promise.all(Array.from({ length: Math.min(settings.concurrency, groups.length) }, worker)) }
     finally {
       for (const row of queue.value) { if (row.status === 'pending') row.status = 'cancelled' }
       running.value = false

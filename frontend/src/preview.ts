@@ -9,7 +9,7 @@ export function installDemo() {
     { account_id: 'demo-account-4', provider_id: 'openai', name: '停用账号', email: 'disabled@example.com', group_ids: [], enabled: false, updated_at_ms: 0 },
   ]
   let version: number | null = null
-  let settings: Settings = { probes: [{ id: 'candy', name: '糖果题', prompt: '在一个黑色的袋子里放有三种口味的糖果，每种糖果有两种不同的形状（圆形和五角星形，不同的形状靠手感可以分辨）。现已知不同口味的糖和不同形状的数量统计如下表。参赛者需要在活动前决定摸出的糖果数目，那么，最少取出多少个糖果才能保证手中同时拥有不同形状的苹果味和桃子味的糖？（同时手中有圆形苹果味匹配五角星桃子味糖果，或者有圆形桃子味匹配五角星苹果味糖果都满足要求）\n苹果味 桃子味 西瓜味\n圆形 7 9 8\n五角星形 7 6 4\n直接回答数字答案', expected: '21', rule: 'exact', enabled: true }], clientKeyId: 'demo-key', model: 'gpt-5', reasoning: 'high', timeoutSeconds: 60, repetitions: 1, concurrency: 2 }
+  let settings: Settings = { selectedProbeId: 'candy', probes: [{ id: 'candy', name: '糖果题', prompt: '在一个黑色的袋子里放有三种口味的糖果，每种糖果有两种不同的形状（圆形和五角星形，不同的形状靠手感可以分辨）。现已知不同口味的糖和不同形状的数量统计如下表。参赛者需要在活动前决定摸出的糖果数目，那么，最少取出多少个糖果才能保证手中同时拥有不同形状的苹果味和桃子味的糖？（同时手中有圆形苹果味匹配五角星桃子味糖果，或者有圆形桃子味匹配五角星苹果味糖果都满足要求）\n苹果味 桃子味 西瓜味\n圆形 7 9 8\n五角星形 7 6 4\n直接回答数字答案', expected: '21', rule: 'exact', enabled: true }], clientKeyId: 'demo-key', model: 'gpt-5', reasoning: 'high', timeoutSeconds: 60, repetitions: 1, concurrency: 2 }
   const history: RunResult[] = []
   const host: HostBridge = {
     version: 2,

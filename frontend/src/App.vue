@@ -10,7 +10,7 @@ import ExportDialog from './ExportDialog.vue'
 
 const accounts = ref<Account[]>([])
 const keys = ref<ClientKey[]>([])
-const settings = ref<Settings>({ probes: [], model: '', clientKeyId: '', reasoning: 'high', timeoutSeconds: 60, repetitions: 1, concurrency: 2 })
+const settings = ref<Settings>({ probes: [], selectedProbeId: '', model: '', clientKeyId: '', reasoning: 'high', timeoutSeconds: 60, repetitions: 1, concurrency: 2 })
 const version = ref<number | null>(null)
 const baseline = ref('')
 const initialized = ref(false)
@@ -39,19 +39,24 @@ const visible = computed(() => accounts.value.filter(account => (!provider.value
 const selectable = computed(() => visible.value.filter(account => account.enabled))
 const allSelected = computed(() => selectable.value.length > 0 && selectable.value.every(account => selected.value.includes(account.account_id)))
 const enabledProbes = computed(() => settings.value.probes.filter(probe => probe.enabled))
-const planned = computed(() => selected.value.length * enabledProbes.value.length * settings.value.repetitions)
+const selectedProbe = computed(() => enabledProbes.value.find(probe => probe.id === settings.value.selectedProbeId))
+const planned = computed(() => selectedProbe.value ? selected.value.length * settings.value.repetitions : 0)
+watch([enabledProbes, () => settings.value.selectedProbeId], () => {
+  if (!selectedProbe.value) settings.value.selectedProbeId = enabledProbes.value[0]?.id || ''
+}, { flush: 'sync' })
 const filteredHistory = computed(() => history.value.filter(result => (!historyOutcome.value || result.outcome === historyOutcome.value) && `${result.accountName} ${result.input.accountId} ${result.input.model} ${result.input.probe.name}`.toLowerCase().includes(historySearch.value.toLowerCase())))
 const currentResults = computed(() => queue.value.flatMap(row => row.result ? [row.result] : []))
 const combined = computed(() => [...currentResults.value].reverse().concat(history.value).filter((row, i, rows) => rows.findIndex(other => other.input.runId === row.input.runId) === i))
 const passed = computed(() => currentResults.value.filter(result => result.outcome === 'passed').length)
 const anomalies = computed(() => currentResults.value.filter(result => ['wrong_answer', 'format_error'].includes(result.outcome)).length)
 const callErrors = computed(() => currentResults.value.filter(result => result.outcome === 'call_error').length + queue.value.filter(row => row.error).length)
-const canRun = computed(() => initialized.value && !loading.value && !running.value && !modelsLoading.value && Boolean(settings.value.model && settings.value.clientKeyId && enabledProbes.value.length))
+const canRun = computed(() => initialized.value && !loading.value && !running.value && !saving.value && !modelsLoading.value && Boolean(settings.value.model && settings.value.clientKeyId && selectedProbe.value))
 
 function latest(accountId: string) {
-  const newest = combined.value.find(result => result.input.accountId === accountId)
+  const matching = combined.value.filter(result => result.input.accountId === accountId && result.input.probe.id === settings.value.selectedProbeId)
+  const newest = matching[0]
   if (!newest) return null
-  const results = combined.value.filter(result => result.input.accountId === accountId && result.input.batchId === newest.input.batchId)
+  const results = matching.filter(result => result.input.batchId === newest.input.batchId)
   const valid = results.filter(result => ['passed', 'wrong_answer', 'format_error'].includes(result.outcome))
   const hasError = results.some(result => result.outcome === 'call_error')
   return { newest, valid: valid.length, passed: valid.filter(result => result.outcome === 'passed').length, outcome: valid.some(result => result.outcome !== 'passed') ? '疑似异常' : hasError ? '无法完整判定' : valid.length ? '通过' : '待人工查看', className: valid.some(result => result.outcome !== 'passed') ? 'wrong_answer' : hasError ? 'call_error' : valid.length ? 'passed' : 'manual_review' }
@@ -125,11 +130,13 @@ window.addEventListener('beforeunload', event => { if (running.value) { event.pr
       <p class="muted compact">调用会消耗所选 Key 的额度，调用错误不计为答案错误</p>
     </section>
     <section v-if="tab === 'accounts'" class="panel">
+      <label class="probe-select">测试题目<select v-model="settings.selectedProbeId" :disabled="running || saving || !enabledProbes.length"><option v-if="!enabledProbes.length" value="">请先在题库启用题目</option><option v-for="probe in enabledProbes" :key="probe.id" :value="probe.id">{{ probe.name }}</option></select></label>
+      <p class="muted compact">每批只测试所选题目，同一账号的重复测试按顺序执行；CPR 停用的账号不支持插件测试</p>
       <div class="section-toolbar">
         <div class="inline grow"><input v-model="search" class="search" aria-label="搜索账号" placeholder="搜索名称、邮箱或账号 ID"><select v-model="provider" aria-label="筛选 Provider"><option value="">全部 Provider</option><option v-for="value in providers" :key="value">{{ value }}</option></select></div>
         <button class="primary" :disabled="!canRun || !selected.length" @click="start()">测试勾选账号（{{ selected.length }}）</button>
       </div>
-      <div class="section-toolbar muted compact"><span>{{ accounts.length }} 个账号 · {{ enabledProbes.length }} 道启用题目 · 预计 {{ planned }} 次调用</span><button v-if="selected.length" class="ghost" :disabled="running" @click="selected = []">清空选择</button></div>
+      <div class="section-toolbar muted compact"><span>{{ accounts.length }} 个账号 · 当前题目：{{ selectedProbe?.name || '未选择' }} · 预计 {{ planned }} 次调用</span><button v-if="selected.length" class="ghost" :disabled="running" @click="selected = []">清空选择</button></div>
       <div class="table-wrap"><table>
         <thead><tr><th class="check"><input type="checkbox" aria-label="勾选当前筛选下的启用账号" :checked="allSelected" :disabled="running || !selectable.length" @change="toggleAll"></th><th>账号</th><th>Provider</th><th>状态</th><th>最近检测</th><th>通过 / 判定</th><th>操作</th></tr></thead>
         <tbody><tr v-for="account in visible" :key="account.account_id">
@@ -147,7 +154,7 @@ window.addEventListener('beforeunload', event => { if (running.value) { event.pr
       <div class="section-toolbar"><h2>本次测试</h2><div class="inline"><button :disabled="!queue.length" @click="download('本次账号测试.json', queue)">导出结果</button><button v-if="running" :disabled="stopped" @click="runner.stop">{{ stopped ? '正在等待执行中的测试结束' : '取消待执行测试' }}</button></div></div>
       <div class="stats"><span><b>{{ done }}</b> / {{ total }} 已完成</span><span><b>{{ active }}</b> 执行中</span><span class="good"><b>{{ passed }}</b> 通过</span><span class="bad"><b>{{ anomalies }}</b> 答案或格式异常</span><span><b>{{ callErrors }}</b> 调用错误</span><span v-if="cancelled"><b>{{ cancelled }}</b> 已取消</span></div>
       <progress :value="done + cancelled" :max="total" aria-label="批量测试进度" />
-      <div class="table-wrap"><table><thead><tr><th>账号</th><th>题目</th><th>次数</th><th>结果</th><th>耗时</th><th>操作</th></tr></thead><tbody><tr v-for="row in queue" :key="row.input.runId"><td>{{ row.accountName }}</td><td>{{ row.input.probe.name }}</td><td>{{ row.input.repetition }}</td><td><span :class="['badge', row.result?.outcome || (row.error ? 'call_error' : row.status)]">{{ rowLabel(row) }}</span><div v-if="row.error || row.saveError" class="small bad">{{ row.error || row.saveError }}</div></td><td>{{ row.result ? `${(row.result.elapsedMs / 1000).toFixed(2)} 秒` : '—' }}</td><td><button v-if="row.result" class="ghost" @click="detail = row.result">详情</button></td></tr></tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>账号</th><th>题目</th><th>次数</th><th>结果</th><th>耗时</th><th>操作</th></tr></thead><tbody><tr v-for="row in queue" :key="row.input.runId"><td>{{ row.accountName }}</td><td>{{ row.input.probe.name }}</td><td>{{ row.input.repetition }}</td><td><span :class="['badge', row.result?.outcome || (row.error ? 'call_error' : row.status)]">{{ rowLabel(row) }}</span><div v-if="row.error || row.result?.error || row.saveError" class="small bad">{{ row.error || row.result?.error || row.saveError }}</div></td><td>{{ row.result ? `${(row.result.elapsedMs / 1000).toFixed(2)} 秒` : '—' }}</td><td><button v-if="row.result" class="ghost" @click="detail = row.result">详情</button></td></tr></tbody></table></div>
       <p class="muted compact">单题未通过仅代表本次测试异常，不能单独证明账号已降智</p>
     </section>
     <section v-if="tab === 'history'" class="panel">

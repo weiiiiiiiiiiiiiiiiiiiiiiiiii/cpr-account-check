@@ -30,6 +30,8 @@ pub enum Rule {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Settings {
     pub probes: Vec<Probe>,
+    #[serde(default)]
+    pub selected_probe_id: String,
     pub model: String,
     pub client_key_id: String,
     pub reasoning: String,
@@ -49,6 +51,7 @@ impl Default for Settings {
                 rule: Rule::Exact,
                 enabled: true,
             }],
+            selected_probe_id: "candy".into(),
             model: String::new(),
             client_key_id: String::new(),
             reasoning: "high".into(),
@@ -106,6 +109,14 @@ impl Settings {
             if !ids.insert(&probe.id) {
                 return Err("题目 ID 重复".into());
             }
+        }
+        if !self.selected_probe_id.is_empty()
+            && !self
+                .probes
+                .iter()
+                .any(|probe| probe.enabled && probe.id == self.selected_probe_id)
+        {
+            return Err("请选择已启用的测试题目".into());
         }
         Ok(())
     }
@@ -214,6 +225,22 @@ pub struct RunResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn selected_probe_is_optional_for_legacy_settings_and_must_be_enabled() {
+        let mut legacy = serde_json::to_value(Settings::default()).unwrap();
+        legacy.as_object_mut().unwrap().remove("selectedProbeId");
+        let mut settings: Settings = serde_json::from_value(legacy).unwrap();
+        assert!(settings.selected_probe_id.is_empty());
+        assert!(settings.validate().is_ok());
+        settings.selected_probe_id = "missing".into();
+        assert!(settings.validate().is_err());
+        settings.selected_probe_id = "candy".into();
+        assert!(settings.validate().is_ok());
+        settings.probes[0].enabled = false;
+        assert!(settings.validate().is_err());
+        settings.selected_probe_id.clear();
+        assert!(settings.validate().is_ok());
+    }
     #[test]
     fn candy_requires_only_the_number() {
         let probe = Settings::default().probes.remove(0);
