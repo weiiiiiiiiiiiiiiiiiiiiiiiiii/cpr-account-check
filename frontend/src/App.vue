@@ -117,7 +117,7 @@ window.addEventListener('beforeunload', event => { if (running.value) { event.pr
     </div>
     <p v-if="error" class="notice error" role="alert">{{ error }}<button v-if="initialized && !running" class="ghost" @click="load(true)">重新加载设置</button><button v-if="!initialized" @click="load()">重试</button></p>
     <p v-if="message" class="notice success" role="status">{{ message }}</p>
-    <section v-if="initialized" class="panel settings">
+    <section v-if="initialized && tab === 'accounts'" class="panel settings">
       <fieldset :disabled="running || saving" class="settings-grid">
         <label>Client Key<select v-model="settings.clientKeyId"><option value="">请选择</option><option v-for="key in keys" :key="key.id" :value="key.id" :disabled="!key.enabled">{{ key.name }}{{ key.enabled ? '' : '（停用）' }}</option></select></label>
         <label>测试模型<select v-model="settings.model" :disabled="modelsLoading"><option value="">{{ modelsLoading ? '加载中…' : '请选择' }}</option><option v-for="model in models" :key="model">{{ model }}</option></select></label>

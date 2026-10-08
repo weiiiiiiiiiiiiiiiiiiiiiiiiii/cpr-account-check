@@ -3,7 +3,7 @@
   "name": "cognition-check",
   "publisher": "account-lab",
   "displayName": "账号能力检测",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "用可编辑题库测试单个或多个账号，并保留回答与历史记录",
   "license": "Apache-2.0",
   "author": "Account Lab",
