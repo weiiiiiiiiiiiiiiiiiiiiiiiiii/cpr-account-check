@@ -1,8 +1,19 @@
 # 交付校验
 
-校验日期：2026-10-08。插件版本：0.1.2。
+## 0.1.3（仅源码改动，未构建、未部署）
 
-## 已完成
+本版只放宽宿主版本声明，`plugin.json` 由 `>=3.21.2, <3.22.0` 改为 `>=3.21.2, <4.0.0`，版本号同步到 0.1.3（`plugin.json`、`backend/Cargo.toml`、`backend/Cargo.lock`、`frontend/package.json`、`frontend/package-lock.json`、`README.md`）。
+
+- 依据：逐一比对 CPR `v3.21.3`、`v3.22.0`、`v3.23.0` 的 `plugin-host-compatibility.json`，`manifest_schema_versions`、`protocol_versions` 与 `management` 能力版本三版一致；两版 `plugin-api-deprecations.json` 中与本插件相关的条目为空。
+- 依据：SDK 源码 diff 仅涉及 `capability.rs`（middleware v3 与 upstream_adapter v1 收口）、`call/services/settings.rs`、`call/observation.rs`、`call/model/facts.rs`、`upstream_adapter/codec.rs`；插件使用的 `call/host.rs`、`call/data.rs`、`call/model/`、`client/` 与管理页合同均未改动。
+- 依据：宿主侧 `package_for()`（唯一会因版本范围不符返回 `ManifestError::Platform` 的入口）在整条安装与运行链路上没有被调用，`plugin_system_update` 预检只把版本范围不符列为待确认项。升级到 3.22.x / 3.23.0 时的提示来自插件自身声明，不是协议不兼容。
+- 未验证：本环境无 Rust 工具链，未重新构建二进制、未重新打包、未在 3.22.0 与 3.23.0 实例上安装本版本。
+
+## 0.1.2（已构建并部署验收）
+
+校验日期：2026-10-08；核对范围 CPR v3.21.2 与 v3.21.3。
+
+### 已完成
 
 - 核对 CPR v3.21.2 与 v3.21.3：使用的插件 SDK 一致；SDK 固定为 v3.21.2，并随源码交付。
 - Rust 格式检查、严格 Clippy（`-D warnings`）及 4 组单元测试通过。
@@ -14,13 +25,15 @@
 - Linux x86_64 静态 musl 发布构建成功。安装包由 CPR 的 `cpr-plugin` CLI 生成，包内文件、前端资源和整体 SHA-256 校验通过，ELF 为 x86_64 且无动态解释器。
 - 在用户 Linux x86_64 / CPR v3.21.3 实例完成登录态资源检查和实际页面验收，账号列表、题库入口与模型选项正常加载；普通与条件资源请求的安全响应头均通过宿主校验。
 
-## 尚未验证
+### 尚未验证
 
 v0.1.2 的调度、判分与流式调用验证使用模拟宿主，未部署此版本或执行真实模型测试。用户在 v0.1.0 上的实际测试记录确认第二题返回 capacity 调用错误；本次读取了记录，没有再次调用上游。源码包中的界面截图为模拟数据。
 
 部署后从 CPR「插件管理」上传安装包，选择允许访问对应账号与模型的 Client Key，先执行单账号糖果题，再按需批量测试。真实请求会使用该 Key 的预算。
 
 ## 校验命令
+
+以下命令用于 0.1.2，0.1.3 沿用同一套流程；`plugin.json` 的宿主范围改动不影响构建步骤。
 
 ```text
 cargo fmt --manifest-path backend/Cargo.toml -- --check
