@@ -18,7 +18,7 @@ if (binary.startsWith('tcp:')) {
   exited = once(child, 'exit');
 }
 child.stderr.on('data', data => process.stderr.write(data));
-const handshake = { protocol_version: 2, artifact_sha256: 'a'.repeat(64), plugin_id: 'account-lab.cognition-check', instance_id: 'test-instance', generation: 1, incarnation: 'test-incarnation', configuration: {}, contributes: { management: { id: 'account-lab.cognition-check.management', version: 1, stages: ['management'], inputFormats: [], outputFormats: [] } } };
+const handshake = { protocol_version: 4, artifact_sha256: 'a'.repeat(64), plugin_id: 'account-lab.cognition-check', instance_id: 'test-instance', generation: 1, incarnation: 'test-incarnation', contributes: { management: { id: 'account-lab.cognition-check.management', version: 2, stages: ['management'], inputFormats: [], outputFormats: [] } } };
 const pending = new Map();
 const state = new Map();
 const executions = new Map();
@@ -32,14 +32,18 @@ const accounts = [
   { account_id: 'a3', provider_id: 'openai', name: 'Disabled', email: null, enabled: false, group_ids: [], updated_at_ms: 0 },
 ];
 
-function frame(message, payload = Buffer.alloc(0)) {
-  const metadata = Buffer.from(JSON.stringify(message));
-  assert.ok(metadata.length <= 64 * 1024, 'Protocol metadata exceeds SDK frame limit');
-  const header = Buffer.alloc(12); header.writeUInt32BE(metadata.length); header.writeBigUInt64BE(BigInt(payload.length), 4);
-  child.stdin.write(Buffer.concat([header, metadata, payload]));
+// 协议 v4 把业务 JSON（调用参数、结果、握手配置）放在帧载荷前缀，控制元数据只带长度
+function frame(message, payload = Buffer.alloc(0), data = undefined) {
+  const dataBytes = data === undefined ? Buffer.alloc(0) : Buffer.from(JSON.stringify(data));
+  const metadata = dataBytes.length === 0 ? message : { ...message, data_bytes: dataBytes.length };
+  const metadataBytes = Buffer.from(JSON.stringify(metadata));
+  assert.ok(metadataBytes.length <= 64 * 1024, 'Protocol metadata exceeds SDK frame limit');
+  const length = dataBytes.length + payload.length;
+  const header = Buffer.alloc(12); header.writeUInt32BE(metadataBytes.length); header.writeBigUInt64BE(BigInt(length), 4);
+  child.stdin.write(Buffer.concat([header, metadataBytes, dataBytes, payload]));
 }
 function error(id, code, message) { frame({ type: 'error', id, error: { code, message, send_state: 'not_sent' } }) }
-function result(id, value, payload = Buffer.alloc(0)) { frame({ type: 'result', id, result: value }, payload) }
+function result(id, value, payload = Buffer.alloc(0)) { frame({ type: 'result', id }, payload, value); }
 function batch(answer, reason = 'stop') {
   const metadata = Buffer.from(JSON.stringify({ facts: [{ type: 'text_delta', index: 0, text: answer }, { type: 'completed', id: 'response-1', model: 'test-model', reason }] }));
   const eventHeader = Buffer.alloc(16); eventHeader.write('GPE2'); eventHeader.writeUInt32BE(metadata.length, 4);
@@ -47,8 +51,8 @@ function batch(answer, reason = 'stop') {
   const header = Buffer.alloc(12); header.write('HME1'); header.writeUInt32BE(1, 4); header.writeUInt32BE(event.length, 8);
   return Buffer.concat([header, event]);
 }
-async function callback(message, payload) {
-  const { id, method, params } = message;
+async function callback(message, params, payload) {
+  const { id, method } = message;
   switch (method) {
     case 'host.data.accounts.list': {
       const query = JSON.parse(payload);
@@ -95,11 +99,15 @@ child.stdout.on('data', data => {
     const metadataLength = stash.readUInt32BE(0), payloadLength = Number(stash.readBigUInt64BE(4)), total = 12 + metadataLength + payloadLength;
     if (stash.length < total) break;
     const message = JSON.parse(stash.subarray(12, 12 + metadataLength));
-    const payload = stash.subarray(12 + metadataLength, total); stash = stash.subarray(total);
+    const dataLength = message.data_bytes ?? 0;
+    const bodyStart = 12 + metadataLength + dataLength;
+    if (stash.length < bodyStart) break;
+    const data = dataLength === 0 ? undefined : JSON.parse(stash.subarray(12 + metadataLength, bodyStart));
+    const payload = stash.subarray(bodyStart, total); stash = stash.subarray(total);
     if (message.type === 'ready') ready(message);
-    else if (message.type === 'callback') callback(message, payload).catch(error => { faults.push(error); child.kill() });
+    else if (message.type === 'callback') callback(message, data ?? {}, payload).catch(error => { faults.push(error); child.kill() });
     else if (['result', 'error', 'cancelled'].includes(message.type)) {
-      const wait = pending.get(message.id); pending.delete(message.id); wait?.({ message, payload });
+      const wait = pending.get(message.id); pending.delete(message.id); wait?.({ message, data, payload });
     }
   }
 });
@@ -107,24 +115,24 @@ function call(method, params, payload = Buffer.alloc(0), stage = 'management', t
   const id = next; next += 2;
   const promise = new Promise(resolve => pending.set(id, resolve));
   const context = { call_id: id, instance_id: handshake.instance_id, generation: 1, incarnation: handshake.incarnation, stage, timeout_ms: timeout, resource_stream: false, resource_scope_id: `scope-${id}` };
-  frame({ type: 'call', id, method, context, params }, payload);
+  frame({ type: 'call', id, method, context }, payload, params);
   return { id, promise };
 }
 async function api(path, body, timeout) {
   const { promise } = call('management.handle', { method: body ? 'POST' : 'GET', path, query: '', content_type: body ? 'application/json' : null, headers: [] }, body ? Buffer.from(JSON.stringify(body)) : Buffer.alloc(0), 'management', timeout);
   const reply = await promise;
   assert.equal(reply.message.type, 'result');
-  return { status: reply.message.result.status, value: JSON.parse(reply.payload) };
+  return { status: reply.data.status, value: JSON.parse(reply.payload) };
 }
 function input(mode, accountId = 'a1', rule = 'exact') {
   return { runId: `run-${mode}-${next}`, batchId: 'batch1', accountId, probe: { id: mode, name: mode, prompt: mode, expected: '21', enabled: true, rule }, model: 'test-model', clientKeyId: 'key1', reasoning: 'high', timeoutSeconds: 5, repetition: 1 };
 }
 const watchdog = setTimeout(() => { console.error('Protocol test timed out'); child.kill(); process.exitCode = 1 }, 35000);
 try {
-  frame({ type: 'hello', handshake });
-  assert.equal((await readyPromise).protocol_version, 2);
+  frame({ type: 'hello', handshake }, Buffer.alloc(0), {});
+  assert.equal((await readyPromise).protocol_version, 4);
   const registration = await call('plugin.register', {}, Buffer.alloc(0), 'registration').promise;
-  assert.equal(registration.message.result.contributes.management.version, 1);
+  assert.equal(registration.data.contributes.management.version, 2);
   const pages = await call('management.register', {}, Buffer.alloc(0), 'registration').promise;
   assert.equal(JSON.parse(pages.payload).pages[0].entry, 'web/index.html');
   const snapshot = await api('api/snapshot');
@@ -179,7 +187,7 @@ try {
   assert.ok(state.size <= 102);
   assert.equal(bounded[0].input.probe.id, 'long');
   assert.equal(faults.length, 0);
-  console.log('PASS: handshake, registration, pagination, settings conflict, account pinning, grading, call errors, history merge, duplicate prevention, timeout close, cancellation recovery, history capacity');
+  console.log('PASS: protocol v4 handshake, registration (management v2), pagination, settings conflict, account pinning, grading, call errors, history merge, duplicate prevention, timeout close, cancellation recovery, history capacity');
 } finally {
   clearTimeout(watchdog);
   frame({ type: 'shutdown' });

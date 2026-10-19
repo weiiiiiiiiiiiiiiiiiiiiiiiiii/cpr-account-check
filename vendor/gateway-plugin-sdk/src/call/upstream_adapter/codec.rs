@@ -9,7 +9,6 @@ use crate::call::model::{
 };
 
 #[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 struct Metadata {
     service_tier: Option<String>,
     continuation: Option<UpstreamContinuation>,
@@ -39,15 +38,7 @@ pub(super) fn encode_request(
     request: UpstreamAdapterRequest,
     body: Vec<u8>,
 ) -> Result<Vec<u8>, ExecutionEncodingError> {
-    encode_request_metadata(&request, body)
-}
-
-/// 封装按合同版本投影的请求元数据，保持 GPAQ 分帧与载荷限制统一
-pub fn encode_request_metadata(
-    metadata: &impl Serialize,
-    body: Vec<u8>,
-) -> Result<Vec<u8>, ExecutionEncodingError> {
-    pack(*b"GPAQ", metadata, [body])
+    pack(*b"GPAQ", &request, [body])
 }
 
 pub(super) fn decode_request(

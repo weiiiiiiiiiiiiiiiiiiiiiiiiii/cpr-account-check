@@ -1,6 +1,6 @@
 # CPR 账号能力检测插件
 
-支持 CPR `v3.21.2` 到 `v3.23.0`（宿主范围声明为 `>=3.21.2, <4.0.0`），安装包面向 Linux x86_64，二进制静态链接 musl，无需在服务器安装 Rust 或 Node.js
+面向 CPR `v3.29.3` 及以上的 3.x（宿主范围声明为 `>=3.29.3, <4.0.0`，插件协议 v4、管理能力 v2），安装包面向 Linux x86_64，二进制静态链接 musl，无需在服务器安装 Rust 或 Node.js
 
 ## 安装与使用
 
@@ -46,7 +46,7 @@
 
 ## 构建
 
-需要 Rust `1.97.0`、Node.js `24` 以上和目标版本 CPR 的 `cpr-plugin` CLI，SDK 源码已固定并附带在 `vendor/`
+需要 Rust `1.97.0`、Node.js `24` 以上和目标版本 CPR 的 `cpr-plugin` CLI，SDK 源码固定为 CPR `v3.29.3` 并附带在 `vendor/`
 
 ```bash
 cd frontend

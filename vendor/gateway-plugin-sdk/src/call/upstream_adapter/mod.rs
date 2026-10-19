@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use super::model::ExecutionEvent;
 
 mod codec;
-pub use codec::encode_request_metadata;
 
 pub const REGISTER_METHOD: &str = "upstream_adapter.register";
 pub const EXECUTE_METHOD: &str = "upstream_adapter.execute";
@@ -49,18 +48,16 @@ impl UpstreamTransport {
 
 /// 注册结果随实例配置冻结；同一实例可为两个内置 Provider 分别声明适配器
 #[derive(Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct UpstreamAdapterRegistration {
     pub adapters: Vec<UpstreamAdapterDeclaration>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct UpstreamAdapterDeclaration {
     pub id: String,
     pub provider: BuiltinProvider,
     pub base_url: String,
-    /// 相对 Base URL 的精确业务路径，不接受绝对 URL、查询串或通配符
+    /// 标记请求路径的业务用途；实际目标按 URL join 规则相对 Base URL 解析
     pub paths: Vec<UpstreamPath>,
     pub authentication_kinds: Vec<String>,
     pub transport: UpstreamTransport,
@@ -79,7 +76,6 @@ pub enum UpstreamPathPurpose {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct UpstreamPath {
     pub path: String,
     pub purpose: UpstreamPathPurpose,
@@ -123,7 +119,6 @@ pub enum ContinuationScope {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct UpstreamContinuation {
     pub scope: ContinuationScope,
     pub upstream_response_id: String,
@@ -178,7 +173,6 @@ pub enum UpstreamFailureKind {
 
 /// 解析后的上游拒绝事实；发送状态始终由宿主网络观测，不接受插件声明
 #[derive(Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct UpstreamFailure {
     pub kind: UpstreamFailureKind,
     pub status: Option<u16>,
