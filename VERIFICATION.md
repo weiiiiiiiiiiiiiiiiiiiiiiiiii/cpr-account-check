@@ -1,6 +1,20 @@
 # 交付校验
 
-## 0.1.4（已构建，待安装验证）
+## 0.1.5（已构建，待安装验证）
+
+校验日期：2026-10-22。本版修复 CPR `v3.29.7` 上插件「无法启动」，界面提示「插件清单或协议版本不兼容。请使用当前 SDK 重新构建」。
+
+- 根因：CPR `v3.29.7` 的 `plugin-host-compatibility.json` 把 `protocol_versions` 由 `[4]` 改为 `[5]`，SDK `message.rs` 的 `PROTOCOL_VERSION` 同步为 5。宿主 `runtime/src/rpc/session.rs` 仍要求 `handshake.protocol_version == 5`、`package.protocol_version == handshake.protocol_version`、清单与握手 `contributes` 一致，0.1.4 的二进制握手发送协议 4，因此被拒绝启动。上游发布说明也写明「插件 RPC 协议由 v4 升至 v5……仅修改清单版本不够」。
+- 依据：SDK 固定版本更新为 CPR `v3.29.7`（提交 `78bc57c5cf24b01a38e985cdd739bb4ae89ce11f`）。v3.29.3→v3.29.7 的 SDK 只改 10 个文件：`message.rs` 协议常量为 5；`capability.rs` 中 `upstream_adapter` 由 `[3]` 升为 `[4]`，`middleware` 保持 5、`scheduler` 3、`management` 2；`call/host.rs` 把 HTTP 头改为字节并新增 `http_version`、`trailers`；`call/model/*` 新增 WebSocket 原文与观测字段；帧布局（12 字节头、`data_bytes` 前缀）与 v4 相同，`manifest_schema_versions` 仍为 `[2]`，`plugin-api-deprecations.json` 为空。插件只使用管理能力与 `host.model.execute_stream` / `stream_read` / `stream_close` 原始帧，`call/data.rs`、`call/management.rs`、`client/` 无签名变化，后端业务代码未改。
+- 已改：`vendor/gateway-plugin-sdk/src` 替换为 v3.29.7 源码（`Cargo.toml` 依赖不变）；`plugin.json` 版本 0.1.5、`engines` 为 `>=3.29.7, <4.0.0`；`backend/Cargo.toml`、`backend/Cargo.lock`、`frontend/package.json`、`frontend/package-lock.json`、`README.md`、`vendor/UPSTREAM.md` 同步版本与宿主范围；`scripts/protocol-smoke.mjs` 的握手、断言与说明改为协议 v5。
+- 已验证：`cargo fmt --check`、`cargo clippy --all-targets -- -D warnings`、`cargo test`（4 组）通过；前端 ESLint 与 `vue-tsc --noEmit`、生产构建通过；`scripts/runner-tests.mjs`（4 组）通过；协议冒烟测试对 Windows release 构建通过，覆盖协议 v5 握手、management v2 注册、账号分页、设置冲突、账号锁定、判分、调用错误、历史合并、重复提交、超时关闭、取消恢复与历史上限。
+- 已构建：`cargo build --release --locked --offline --target x86_64-unknown-linux-musl` 通过，`bin/plugin` 为 ELF64 x86-64、`ET_DYN` 静态可执行（无 `PT_INTERP`，摘要 `49745dc56132daff9dce437ea5eaf6f4d52d929eb8b0154429ecc1ba0cf50492`）。打包用 `cpr-plugin` 由 `.build/plugin-cli`（v3.29.7 的 `backend/apps/plugin-cli`，与上游 3.29.3/3.29.7 字节相同）对同一份 `vendor/` SDK 重新构建，因此写入协议 5。
+- 已校验：归档内 `plugin.json` 版本 0.1.5、`engines` 为 `>=3.29.7, <4.0.0`、`contributes.management.version` 为 2、`package.protocolVersion` 为 5、`package.target` 为 `linux/x86_64`；四个文件摘要与承载内容逐一匹配；整包 SHA-256 `94886f6a7350c32a42adaecea3f0be5f77e8b9b382425540f294f05c367cc67f` 与 `.sha256` 一致；`plugin.json` 为合法 UTF-8，显示名与描述未损坏。
+- 已复用：前端源码未改，`web/app.css`、`web/app.js`、`web/index.html` 的摘要与 0.1.4 包内资源完全相同。
+- 兼容窗口：协议从 v5 起与 3.29.7 对齐，本版不能用于 3.29.3–3.29.6（宿主要求协议 4）。如需同时服务两代宿主，必须分别用对应 SDK 构建两份安装包。
+- 未验证：未在真实 CPR 3.29.7 实例上安装本版本，未执行真实模型调用；安装后需确认插件状态由「异常」变为可用，并从插件页面执行一次单账号测试。
+
+## 0.1.4（已构建，被 0.1.5 取代，未发布）
 
 校验日期：2026-10-19。本版修复 CPR `v3.29.3` 上插件「无法启动」，界面提示「插件清单或协议版本不兼容。请使用当前 SDK 重新构建」。
 

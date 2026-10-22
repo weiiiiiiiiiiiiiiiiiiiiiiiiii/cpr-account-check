@@ -2,7 +2,7 @@
 
 上游仓库：<https://github.com/zyycn/codex-proxy-rs>
 
-固定版本：`v3.29.3`，提交 `16d8a3f87309d9346a5f204673390fe20478b40e`
+固定版本：`v3.29.7`，提交 `78bc57c5cf24b01a38e985cdd739bb4ae89ce11f`
 
 `gateway-plugin-sdk/src/` 保留上游源码，Cargo 清单仅把 workspace 继承字段改成独立包字段并去除上游测试配置，便于独立构建
 
