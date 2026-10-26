@@ -1,6 +1,6 @@
 # 交付校验
 
-## 0.1.6（已构建，待宿主升级后安装验证）
+## 0.1.6（已构建并发布，待宿主升级后安装验证）
 
 校验日期：2026-10-26。本版适配 CPR `v3.32.0` 的插件 RPC 协议 v6。
 
@@ -12,6 +12,7 @@
 - 已校验：归档内 `plugin.json` 版本 0.1.6、`engines` 为 `>=3.32.0, <4.0.0`、`contributes.management.version` 为 2、`package.protocolVersion` 为 6、`package.target` 为 `linux/x86_64`；四个文件摘要与承载内容逐一匹配（`bin/plugin` 同上，`web/app.css` `01adfa82…`、`web/app.js` `6551d5e5…`、`web/index.html` `17ab84fc…`）；整包 SHA-256 `af8062c18f6b549f5721a81d5aff8c75720feb5b0f1d6cc893802526763ef953` 与 `.sha256` 一致；`plugin.json` 为合法 UTF-8，显示名与描述未损坏。
 - 已复用：前端源码未改，`web/app.css`、`web/app.js`、`web/index.html` 的摘要与 0.1.5 包内资源完全相同。
 - 兼容窗口：协议 v6 自 3.32.0 起生效，本版不能用于 3.31.3 及更早版本（那些版本要求协议 5 或更低）。当前 wyfdisk 宿主的 `update-state.json` 记录已自 3.30.2 更新到 3.31.3，容器内 `/app/bin/codex-proxy-rs --version` 也是 3.31.3，因此需先把宿主升级到 3.32.0 再上传本版；升级前请继续使用 0.1.5。
+- 已发布：`v0.1.6` 标签（注解标签 `d25b691`，指向 `4e8ab5a`）与 GitHub Release <https://github.com/weiiiiiiiiiiiiiiiiiiiiiiiiii/cpr-account-check/releases/tag/v0.1.6>，含 `.tar.gz` 与 `.sha256`，已标记为 Latest；重新下载资产校验 SHA-256 仍为 `af8062c1…ef953`，与 GitHub 报告的上传摘要及 `.sha256` 一致；Release 标题为「v0.1.6 — 适配 CPR 3.32.0 协议 v6」，正文为正常 UTF-8 中文。
 - 未验证：未在真实 CPR 3.32.0 实例上安装本版本，未执行真实模型调用；本机也没有 3.32.0 宿主可用于安装验收。宿主升级后需确认插件状态由「异常」变为可用，并从插件页面执行一次单账号测试。
 
 ## 0.1.5（已构建并发布，待安装验证）
