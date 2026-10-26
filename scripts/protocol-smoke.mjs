@@ -18,7 +18,7 @@ if (binary.startsWith('tcp:')) {
   exited = once(child, 'exit');
 }
 child.stderr.on('data', data => process.stderr.write(data));
-const handshake = { protocol_version: 5, artifact_sha256: 'a'.repeat(64), plugin_id: 'account-lab.cognition-check', instance_id: 'test-instance', generation: 1, incarnation: 'test-incarnation', contributes: { management: { id: 'account-lab.cognition-check.management', version: 2, stages: ['management'], inputFormats: [], outputFormats: [] } } };
+const handshake = { protocol_version: 6, artifact_sha256: 'a'.repeat(64), plugin_id: 'account-lab.cognition-check', instance_id: 'test-instance', generation: 1, incarnation: 'test-incarnation', contributes: { management: { id: 'account-lab.cognition-check.management', version: 2, stages: ['management'], inputFormats: [], outputFormats: [] } } };
 const pending = new Map();
 const state = new Map();
 const executions = new Map();
@@ -32,7 +32,8 @@ const accounts = [
   { account_id: 'a3', provider_id: 'openai', name: 'Disabled', email: null, enabled: false, group_ids: [], updated_at_ms: 0 },
 ];
 
-// 协议 v5 沿用 v4 帧布局：业务 JSON（调用参数、结果、握手配置）放在帧载荷前缀，控制元数据只带长度
+// 协议 v6 沿用 v5 帧布局：业务 JSON（调用参数、结果、握手配置）放在帧载荷前缀，控制元数据只带长度
+// Ready 额外携带按阶段声明的调用预算，未声明时为空对象，由双方按同一份默认表解析
 function frame(message, payload = Buffer.alloc(0), data = undefined) {
   const dataBytes = data === undefined ? Buffer.alloc(0) : Buffer.from(JSON.stringify(data));
   const metadata = dataBytes.length === 0 ? message : { ...message, data_bytes: dataBytes.length };
@@ -111,7 +112,7 @@ child.stdout.on('data', data => {
     }
   }
 });
-function call(method, params, payload = Buffer.alloc(0), stage = 'management', timeout = 120000) {
+function call(method, params, payload = Buffer.alloc(0), stage = 'management', timeout = stage === 'registration' ? 5000 : 120000) {
   const id = next; next += 2;
   const promise = new Promise(resolve => pending.set(id, resolve));
   const context = { call_id: id, instance_id: handshake.instance_id, generation: 1, incarnation: handshake.incarnation, stage, timeout_ms: timeout, resource_stream: false, resource_scope_id: `scope-${id}` };
@@ -130,7 +131,9 @@ function input(mode, accountId = 'a1', rule = 'exact') {
 const watchdog = setTimeout(() => { console.error('Protocol test timed out'); child.kill(); process.exitCode = 1 }, 35000);
 try {
   frame({ type: 'hello', handshake }, Buffer.alloc(0), {});
-  assert.equal((await readyPromise).protocol_version, 5);
+  const readyMessage = await readyPromise;
+  assert.equal(readyMessage.protocol_version, 6);
+  assert.deepEqual(readyMessage.call_budgets, {});
   const registration = await call('plugin.register', {}, Buffer.alloc(0), 'registration').promise;
   assert.equal(registration.data.contributes.management.version, 2);
   const pages = await call('management.register', {}, Buffer.alloc(0), 'registration').promise;
@@ -187,7 +190,7 @@ try {
   assert.ok(state.size <= 102);
   assert.equal(bounded[0].input.probe.id, 'long');
   assert.equal(faults.length, 0);
-  console.log('PASS: protocol v5 handshake, registration (management v2), pagination, settings conflict, account pinning, grading, call errors, history merge, duplicate prevention, timeout close, cancellation recovery, history capacity');
+  console.log('PASS: protocol v6 handshake, registration (management v2), pagination, settings conflict, account pinning, grading, call errors, history merge, duplicate prevention, timeout close, cancellation recovery, history capacity');
 } finally {
   clearTimeout(watchdog);
   frame({ type: 'shutdown' });
