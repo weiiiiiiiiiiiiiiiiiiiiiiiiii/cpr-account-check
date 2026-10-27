@@ -18,7 +18,7 @@ if (binary.startsWith('tcp:')) {
   exited = once(child, 'exit');
 }
 child.stderr.on('data', data => process.stderr.write(data));
-const handshake = { protocol_version: 6, artifact_sha256: 'a'.repeat(64), plugin_id: 'account-lab.cognition-check', instance_id: 'test-instance', generation: 1, incarnation: 'test-incarnation', contributes: { management: { id: 'account-lab.cognition-check.management', version: 2, stages: ['management'], inputFormats: [], outputFormats: [] } } };
+const handshake = { protocol_version: 7, artifact_sha256: 'a'.repeat(64), plugin_id: 'account-lab.cognition-check', instance_id: 'test-instance', generation: 1, incarnation: 'test-incarnation', contributes: { management: { id: 'account-lab.cognition-check.management', version: 2, stages: ['management'], inputFormats: [], outputFormats: [] } } };
 const pending = new Map();
 const state = new Map();
 const executions = new Map();
@@ -32,8 +32,8 @@ const accounts = [
   { account_id: 'a3', provider_id: 'openai', name: 'Disabled', email: null, enabled: false, group_ids: [], updated_at_ms: 0 },
 ];
 
-// 协议 v6 沿用 v5 帧布局：业务 JSON（调用参数、结果、握手配置）放在帧载荷前缀，控制元数据只带长度
-// Ready 额外携带按阶段声明的调用预算，未声明时为空对象，由双方按同一份默认表解析
+// 协议 v7 沿用 v6 帧布局：业务 JSON（调用参数、结果、握手配置）放在帧载荷前缀，控制元数据只带长度
+// Ready 携带按阶段声明的调用预算；父调用等待回调时插件先发 suspend，唤醒后发 resume，宿主授权后回 resumed
 function frame(message, payload = Buffer.alloc(0), data = undefined) {
   const dataBytes = data === undefined ? Buffer.alloc(0) : Buffer.from(JSON.stringify(data));
   const metadata = dataBytes.length === 0 ? message : { ...message, data_bytes: dataBytes.length };
@@ -107,6 +107,8 @@ child.stdout.on('data', data => {
     const payload = stash.subarray(bodyStart, total); stash = stash.subarray(total);
     if (message.type === 'ready') ready(message);
     else if (message.type === 'callback') callback(message, data ?? {}, payload).catch(error => { faults.push(error); child.kill() });
+    else if (message.type === 'resume') frame({ type: 'resumed', id: message.id, epoch: message.epoch });
+    else if (message.type === 'suspend' || message.type === 'callback_consumed') { /* 宿主只记录调度事实，无需回复 */ }
     else if (['result', 'error', 'cancelled'].includes(message.type)) {
       const wait = pending.get(message.id); pending.delete(message.id); wait?.({ message, data, payload });
     }
@@ -132,7 +134,7 @@ const watchdog = setTimeout(() => { console.error('Protocol test timed out'); ch
 try {
   frame({ type: 'hello', handshake }, Buffer.alloc(0), {});
   const readyMessage = await readyPromise;
-  assert.equal(readyMessage.protocol_version, 6);
+  assert.equal(readyMessage.protocol_version, 7);
   assert.deepEqual(readyMessage.call_budgets, {});
   const registration = await call('plugin.register', {}, Buffer.alloc(0), 'registration').promise;
   assert.equal(registration.data.contributes.management.version, 2);
@@ -190,7 +192,7 @@ try {
   assert.ok(state.size <= 102);
   assert.equal(bounded[0].input.probe.id, 'long');
   assert.equal(faults.length, 0);
-  console.log('PASS: protocol v6 handshake, registration (management v2), pagination, settings conflict, account pinning, grading, call errors, history merge, duplicate prevention, timeout close, cancellation recovery, history capacity');
+  console.log('PASS: protocol v7 handshake, registration (management v2), pagination, settings conflict, account pinning, grading, call errors, history merge, duplicate prevention, timeout close, cancellation recovery, history capacity');
 } finally {
   clearTimeout(watchdog);
   frame({ type: 'shutdown' });
