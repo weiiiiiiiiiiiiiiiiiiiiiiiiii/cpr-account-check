@@ -1,6 +1,6 @@
 # 交付校验
 
-## 0.1.7（已构建，待宿主升级到 3.33.0 后安装验证）
+## 0.1.7（已构建并发布，待宿主升级到 3.33.0 后安装验证）
 
 校验日期：2026-10-27。本版适配 CPR `v3.33.0` 的插件 RPC 协议 v7。
 
@@ -12,6 +12,7 @@
 - 已校验：归档内 `plugin.json` 版本 0.1.7、`engines` 为 `>=3.33.0, <4.0.0`、`contributes.management.version` 为 2、`package.protocolVersion` 为 7、`package.target` 为 `linux/x86_64`；四个文件摘要与承载内容逐一匹配（`bin/plugin` 同上，`web/app.css` `01adfa82…`、`web/app.js` `6551d5e5…`、`web/index.html` `17ab84fc…`）；整包 SHA-256 `f42afe2b6a3c2ee7dabaa012469d20967a385e59567ac0da24432f1ca492f634` 与 `.sha256` 一致；`plugin.json` 为合法 UTF-8，显示名与描述未损坏。
 - 已复用：前端源码未改，`web/app.css`、`web/app.js`、`web/index.html` 的摘要与 0.1.6 包内资源完全相同。
 - 兼容窗口：协议 v7 自 3.33.0 起生效，本版不能用于 3.32.0 及更早版本（那些版本要求协议 6 或更低）。wyfdisk 宿主在 2026-10-26 09:53 由 3.31.3 自更新到 3.32.0 并安装了 0.1.6，截至本次校验仍是 3.32.0、尚无 3.33.0 更新记录，因此需先把宿主升级到 3.33.0 再上传本版；升级前请继续使用 0.1.6。
+- 已发布：`v0.1.7` 标签（注解标签 `9dac541`，指向 `679d89b`）与 GitHub Release <https://github.com/weiiiiiiiiiiiiiiiiiiiiiiiiii/cpr-account-check/releases/tag/v0.1.7>，含 `.tar.gz` 与 `.sha256`，已标记为 Latest；重新下载资产校验 SHA-256 仍为 `f42afe2b…92f634`，与 GitHub 报告的上传摘要及 `.sha256` 一致；Release 标题为「v0.1.7 — 适配 CPR 3.33.0 协议 v7」，正文为正常 UTF-8 中文。
 - 未验证：未在真实 CPR 3.33.0 实例上安装本版本，未执行真实模型调用；宿主升级后需确认插件状态可用，并从插件页面执行一次单账号测试。
 
 ## 0.1.6（已构建并发布，待宿主升级后安装验证）
